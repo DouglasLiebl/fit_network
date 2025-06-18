@@ -2,133 +2,126 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
 import Colors from "@/constants/Colors";
 import { useUser } from "@/context/user_provider";
-import { collection, addDoc, getFirestore, query, where, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore"; 
-import { Expense } from "@/@types/ExpenseTypes";
-import { groupExpensesByDate, calculateTotalExpenses } from "@/utils/expenseUtils";
+import { collection, addDoc, getFirestore, query, orderBy, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore"; 
+import { Post } from "@/@types/Post";
 import { Alert } from "@/utils/alertUtils";
-import ExpenseSummary from "@/components/ExpenseSummary";
-import ExpenseList from "@/components/ExpenseList";
-import ExpenseForm from "@/components/ExpenseForm";
+import PostList from "@/components/PostList";
+import PostForm from "@/components/PostForm";
 import ActionModal from "@/components/ActionModal";
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Home(): React.JSX.Element {
   const [modalVisible, setModalVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [groupedExpenses, setGroupedExpenses] = useState<any[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [fetchingData, setFetchingData] = useState(true);
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { user } = useUser();
   const db = getFirestore();
 
   useEffect(() => {
     if (user && user.uid) {
-      fetchUserExpenses();
+      fetchPosts();
     } else {
       setFetchingData(false);
     }
   }, [user]);
 
-  const fetchUserExpenses = async () => {
+  const fetchPosts = async () => {
     try {
       setFetchingData(true);
       const q = query(
-        collection(db, "data"),
-        where("userId", "==", user?.uid)
+        collection(db, "posts"),
+        orderBy("createdAt", "desc")
       );
       
       const querySnapshot = await getDocs(q);
-      const fetchedExpenses: Expense[] = [];
+      const fetchedPosts: Post[] = [];
       
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        fetchedExpenses.push({
+        fetchedPosts.push({
           id: doc.id,
-          date: data.date.toDate(),
-          amount: data.amount,
+          userId: data.userId,
+          username: data.username,
           description: data.description,
+          imageUrl: data.imageUrl,
+          location: data.location,
           createdAt: data.createdAt.toDate(),
         });
       });
       
-      fetchedExpenses.sort((a, b) => b.date.getTime() - a.date.getTime());
-      
-      setExpenses(fetchedExpenses);
-      
-      const grouped = groupExpensesByDate(fetchedExpenses);
-      setGroupedExpenses(grouped);
-      
+      setPosts(fetchedPosts);
       setFetchingData(false);
     } catch (error) {
       setFetchingData(false);
-      Alert.error("Erro", "Não foi possível carregar suas despesas.");
+      Alert.error("Erro", "Não foi possível carregar os posts.");
     }
   };
 
-  const handleLongPress = (expense: Expense) => {
-    setSelectedExpense(expense);
-    setActionModalVisible(true);
+  const handleLongPress = (post: Post) => {
+    if (post.userId === user?.uid) {
+      setSelectedPost(post);
+      setActionModalVisible(true);
+    }
   };
 
-  const handleEditExpense = () => {
-    if (!selectedExpense) return;
+  const handleEditPost = () => {
+    if (!selectedPost) return;
     
     setActionModalVisible(false);
     setIsEditing(true);
     setModalVisible(true);
   };
 
-  const handleDeleteExpense = async () => {
-    if (!selectedExpense) return;
+  const handleDeletePost = async () => {
+    if (!selectedPost) return;
     
     const confirmed = await Alert.confirm(
       "Confirmação",
-      "Tem certeza que deseja excluir esta despesa?"
+      "Tem certeza que deseja excluir este post?"
     );
     
     if (confirmed) {
-      deleteExpense();
+      deletePost();
     } else {
       setActionModalVisible(false);
     }
   };
 
-  const deleteExpense = async () => {
-    if (!selectedExpense) return;
+  const deletePost = async () => {
+    if (!selectedPost) return;
     
     try {
       setActionModalVisible(false);
       setLoading(true);
       
-      await deleteDoc(doc(db, "data", selectedExpense.id));
+      await deleteDoc(doc(db, "posts", selectedPost.id));
       
-      const updatedExpenses = expenses.filter(e => e.id !== selectedExpense.id);
-      setExpenses(updatedExpenses);
-      
-      const updatedGrouped = groupExpensesByDate(updatedExpenses);
-      setGroupedExpenses(updatedGrouped);
+      const updatedPosts = posts.filter(p => p.id !== selectedPost.id);
+      setPosts(updatedPosts);
       
       setLoading(false);
-      setSelectedExpense(null);
+      setSelectedPost(null);
       
-      Alert.success("Sucesso", "Despesa excluída com sucesso!");
+      Alert.success("Sucesso", "Post excluído com sucesso!");
     } catch (error: any) {
       setLoading(false);
-      Alert.error("Erro", "Não foi possível excluir a despesa: " + error.message);
+      Alert.error("Erro", "Não foi possível excluir o post: " + error.message);
     }
   };
 
   const openAddModal = () => {
     setIsEditing(false);
-    setSelectedExpense(null);
+    setSelectedPost(null);
     setModalVisible(true);
   };
 
-  const handleSave = async (date: Date, amount: number, description: string) => {
-    if (!amount || amount <= 0) {
-      Alert.warning('Atenção', 'Por favor, informe um valor válido');
+  const handleSave = async (description: string, imageUrl: string, location: any) => {
+    if (!description && !imageUrl) {
+      Alert.warning('Atenção', 'Seu post precisa de uma descrição ou imagem');
       return;
     }
   
@@ -140,51 +133,50 @@ export default function Home(): React.JSX.Element {
     try {
       setLoading(true);
       
-      if (isEditing && selectedExpense) {
-        await updateDoc(doc(db, "data", selectedExpense.id), {
-          date: date,
-          amount: amount,
-          description: description || 'Despesa sem descrição',
+      if (isEditing && selectedPost) {
+        await updateDoc(doc(db, "posts", selectedPost.id), {
+          description: description,
+          imageUrl: imageUrl,
+          location: location,
         });
         
-        Alert.success('Sucesso', 'Despesa atualizada com sucesso!');
+        Alert.success('Sucesso', 'Post atualizado com sucesso!');
       } else {
-        await addDoc(collection(db, "data"), {
+        await addDoc(collection(db, "posts"), {
           userId: user.uid,
-          date: date,
-          amount: amount,
-          description: description || 'Despesa sem descrição',
+          username: user.displayName || 'Usuário',
+          description: description,
+          imageUrl: imageUrl,
+          location: location,
           createdAt: new Date()
         });
         
-        Alert.success('Sucesso', 'Despesa registrada com sucesso!');
+        Alert.success('Sucesso', 'Post publicado com sucesso!');
       }
   
       setLoading(false);
       setModalVisible(false);
       setIsEditing(false);
-      setSelectedExpense(null);
+      setSelectedPost(null);
       
-      fetchUserExpenses();
+      fetchPosts();
     } catch (error: any) {
       setLoading(false);
-      Alert.error('Erro', `Erro ao ${isEditing ? 'atualizar' : 'registrar'} despesa: ` + error.message);
+      Alert.error('Erro', `Erro ao ${isEditing ? 'atualizar' : 'publicar'} post: ` + error.message);
     }
   };
 
   const closeModal = () => {
     setModalVisible(false);
     setIsEditing(false);
-    setSelectedExpense(null);
+    setSelectedPost(null);
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <ExpenseSummary totalAmount={calculateTotalExpenses(expenses)} />
-        <ExpenseList 
-          groupedExpenses={groupedExpenses} 
-          expenses={expenses} 
+        <PostList 
+          posts={posts}
           onItemLongPress={handleLongPress}
           loading={fetchingData}
         />
@@ -193,14 +185,12 @@ export default function Home(): React.JSX.Element {
         style={styles.addButton} 
         onPress={openAddModal}
       >
-        <Text style={styles.addButtonText}>
-          +
-        </Text>
+        <Ionicons name="camera" size={24} color="white" />
       </TouchableOpacity>
-      <ExpenseForm 
+      <PostForm 
         visible={modalVisible}
         isEditing={isEditing}
-        selectedExpense={selectedExpense}
+        selectedPost={selectedPost}
         onClose={closeModal}
         onSave={handleSave}
         loading={loading}
@@ -208,8 +198,8 @@ export default function Home(): React.JSX.Element {
       <ActionModal 
         visible={actionModalVisible}
         onClose={() => setActionModalVisible(false)}
-        onEdit={handleEditExpense}
-        onDelete={handleDeleteExpense}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
       />
     </View>
   );
@@ -227,22 +217,19 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: Colors.titleGrey,
-    padding: 10,
+    padding: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     position: 'absolute',
     bottom: 20,
-    alignSelf: 'center',
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 25,
-    lineHeight: 30,
-    fontWeight: 'bold',
-    fontFamily: 'JetBrainsMono_500Medium',
-    includeFontPadding: false,
+    right: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   }
 });

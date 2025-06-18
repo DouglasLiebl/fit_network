@@ -7,5 +7,6 @@ export default {
   titleGrey: titleGrey,
   subtitleGrey: subtitleGrey,
   borderGrey: borderGrey,
-  backgroundGrey: backgroundGrey
+  backgroundGrey: backgroundGrey,
+  textGrey: '#999999'
 };

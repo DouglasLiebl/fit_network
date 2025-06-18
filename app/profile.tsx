@@ -1,25 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { useUser } from "@/context/user_provider";
 import Colors from "@/constants/Colors";
 import { getAuth, signOut } from "firebase/auth";
 import { useRouter } from "expo-router";
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import InfoItem from "@/components/InfoItem";
-
-interface UserData {
-  userId: string;
-  displayName: string | null;
-  email: string;
-  emailVerified: boolean;
-  isActive: boolean;
-  createdAt: any;
-  lastLogin: any;
-  phoneNumber: string | null;
-  photoURL: string | null;
-}
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from "firebase/firestore";
+import { Alert } from "@/utils/alertUtils";
+import { Post } from "@/@types/Post";
+import PostList from "@/components/PostList";
+import ActionModal from "@/components/ActionModal";
+import PostForm from "@/components/PostForm";
 
 export default function Profile(): React.JSX.Element {
   const { user, setUser } = useUser();
@@ -27,128 +19,163 @@ export default function Profile(): React.JSX.Element {
   const auth = getAuth();
   const db = getFirestore();
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [userStats, setUserStats] = useState({
-    totalExpenses: 0,
-    expenseCount: 0,
-  });
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [postsCount, setPostsCount] = useState(0);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [savingPost, setSavingPost] = useState(false);
 
   useEffect(() => {
     if (user && user.uid) {
-      fetchUserData();
-      fetchUserStats();
+      fetchUserPosts();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
-  const fetchUserData = async () => {
+  const fetchUserPosts = async () => {
+    if (!user?.uid) return;
+    
     try {
       setLoading(true);
-
-      const userDocRef = doc(db, "users", user!.uid);
-      const userDocSnapshot = await getDoc(userDocRef);
       
-      if (userDocSnapshot.exists()) {
-        const data = userDocSnapshot.data() as UserData;
-        setUserData(data);
-      } else {
-        setUserData({
-          userId: user!.uid,
-          displayName: user?.displayName || null,
-          email: user?.email || "",
-          emailVerified: user?.emailVerified || false,
-          isActive: true,
-          createdAt: new Date(),
-          lastLogin: new Date(),
-          phoneNumber: null,
-          photoURL: user?.photoURL || null,
+      const postsRef = collection(db, "posts");
+      const userPostsQuery = query(
+        postsRef, 
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
+      
+      const querySnapshot = await getDocs(userPostsQuery);
+      const posts: Post[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        posts.push({
+          id: doc.id,
+          userId: data.userId,
+          username: data.username,
+          description: data.description,
+          imageUrl: data.imageUrl,
+          location: data.location,
+          createdAt: data.createdAt.toDate(),
         });
-      }
+      });
+      
+      setUserPosts(posts);
+      setPostsCount(posts.length);
     } catch (error) {
-      Alert.alert("Erro", "Falha ao carregar dados do usuário.");
+      console.error("Error fetching user posts:", error);
+      Alert.error("Erro", "Falha ao carregar seus posts.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUserStats = async () => {
-    try {
-      if (!user?.uid) return;
-      
-      const expensesRef = collection(db, "data");
-      const userExpensesQuery = query(expensesRef, where("userId", "==", user.uid));
-      
-      const querySnapshot = await getDocs(userExpensesQuery);
-      let totalAmount = 0;
-      let count = 0;
-      
-      querySnapshot.forEach((doc) => {
-        const expenseData = doc.data();
-        totalAmount += expenseData.amount || 0;
-        count++;
-      });
-      
-      setUserStats({
-        totalExpenses: totalAmount,
-        expenseCount: count,
-      });
-      
-    } catch (error) {
-      console.error("Error fetching user stats:", error);
-      setUserStats({
-        totalExpenses: 0,
-        expenseCount: 0,
-      });
-    }
-  };
-
   const handleLogout = async () => {
-    Alert.alert(
+    Alert.confirm(
       "Confirmação",
       "Tem certeza que deseja sair da sua conta?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              await signOut(auth);
-              await AsyncStorage.removeItem('userData');
-              setUser(null);
-              router.replace("/login");
-            } catch (error) {
-              console.error("Error signing out:", error);
-              Alert.alert("Erro", "Não foi possível sair da conta.");
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    ).then(async (confirmed) => {
+      if (confirmed) {
+        try {
+          setLoading(true);
+          await signOut(auth);
+          await AsyncStorage.removeItem('userData');
+          setUser(null);
+          router.replace("/login");
+        } catch (error) {
+          console.error("Error signing out:", error);
+          Alert.error("Erro", "Não foi possível sair da conta.");
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
-  const formatFirestoreTimestamp = (timestamp: any): string => {
-    try {
-      const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-      
-      if (isNaN(date.getTime())) {
-        throw new Error('Invalid date');
+  const handleLongPress = (post: Post) => {
+    setSelectedPost(post);
+    setActionModalVisible(true);
+  };
+
+  const handleEditPost = () => {
+    if (!selectedPost) return;
+    
+    setActionModalVisible(false);
+    setIsEditing(true);
+    setModalVisible(true);
+  };
+
+  const handleDeletePost = async () => {
+    if (!selectedPost) return;
+    
+    const confirmed = await Alert.confirm(
+      "Confirmação",
+      "Tem certeza que deseja excluir este post?"
+    );
+    
+    if (confirmed) {
+      try {
+        setActionModalVisible(false);
+        setSavingPost(true);
+        
+        await deleteDoc(doc(db, "posts", selectedPost.id));
+        
+        // Update state
+        const updatedPosts = userPosts.filter(post => post.id !== selectedPost.id);
+        setUserPosts(updatedPosts);
+        setPostsCount(updatedPosts.length);
+        
+        setSavingPost(false);
+        Alert.success("Sucesso", "Post excluído com sucesso!");
+      } catch (error: any) {
+        setSavingPost(false);
+        Alert.error("Erro", "Não foi possível excluir o post: " + error.message);
       }
-      
-      return new Intl.DateTimeFormat('pt-BR', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }).format(date);
-    } catch (error) {
-      console.warn('Error formatting date, using fallback format', error);
-      return 'Data não disponível';
+    } else {
+      setActionModalVisible(false);
     }
   };
 
-  const formatCurrency = (value: number): string => {
-    return `R$ ${value.toFixed(2)}`;
+  const handleSave = async (description: string, imageUrl: string, location: any) => {
+    if (!user || !user.uid) {
+      Alert.error("Erro", "Usuário não autenticado");
+      return;
+    }
+
+    if (isEditing && selectedPost) {
+      try {
+        setSavingPost(true);
+        
+        await updateDoc(doc(db, "posts", selectedPost.id), {
+          description,
+          imageUrl,
+          location,
+        });
+        
+        // Refresh the posts list
+        await fetchUserPosts();
+        
+        setSavingPost(false);
+        setModalVisible(false);
+        setIsEditing(false);
+        setSelectedPost(null);
+        
+        Alert.success("Sucesso", "Post atualizado com sucesso!");
+      } catch (error: any) {
+        setSavingPost(false);
+        Alert.error("Erro", "Ocorreu um erro ao atualizar o post: " + error.message);
+      }
+    }
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setIsEditing(false);
+    setSelectedPost(null);
   };
 
   if (loading) {
@@ -161,41 +188,89 @@ export default function Profile(): React.JSX.Element {
   }
 
   return (
-    <ScrollView style={styles.container}>
-    
-      <View style={styles.section}>
-        <InfoItem label={"Email"} value={userData?.email} />
-        <InfoItem label={"Telefone"} value={userData?.phoneNumber || undefined} />
-        <InfoItem label={"Email verificado"} value={userData?.emailVerified ? "Sim" : "Não"} />
-        <InfoItem label={"Último acesso"} value={userData?.lastLogin ? formatFirestoreTimestamp(userData.lastLogin) : undefined} />
-      
-      </View>
-
-
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{formatCurrency(userStats.totalExpenses)}</Text>
-          <Text style={styles.statLabel}>Total de despesas</Text>
+    <View style={styles.container}>
+      {/* Profile Header */}
+      <View style={styles.profileHeader}>
+        <View style={styles.profileInfo}>
+          {user?.photoURL ? (
+            <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
+          ) : (
+            <View style={styles.profileImagePlaceholder}>
+              <Ionicons name="person" size={40} color="#CCCCCC" />
+            </View>
+          )}
+          
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>
+              {user?.displayName || 'Usuário'}
+            </Text>
+            <Text style={styles.userEmail}>
+              {user?.email}
+            </Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statCount}>{postsCount}</Text>
+                <Text style={styles.statLabel}>
+                  {postsCount === 1 ? 'post' : 'posts'}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userStats.expenseCount}</Text>
-          <Text style={styles.statLabel}>Registros</Text>
-        </View>
-      </View>
 
-
-      <View style={styles.section}>
         <TouchableOpacity 
-          style={[styles.menuItem, styles.logoutItem]} 
+          style={styles.logoutButton}
           onPress={handleLogout}
         >
-          <View style={styles.menuItemLeft}>
-            <MaterialIcons name="logout" size={22} color="#E53935" />
-            <Text style={[styles.menuItemText, styles.logoutText]}>Sair</Text>
-          </View>
+          <MaterialIcons name="logout" size={18} color="#E53935" />
+          <Text style={styles.logoutText}>Sair</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      
+      <View style={styles.separator} />
+
+      {/* User Posts */}
+      <View style={styles.postsContainer}>
+        <Text style={styles.sectionTitle}>Meus Posts</Text>
+        
+        {userPosts.length === 0 ? (
+          <View style={styles.emptyPosts}>
+            <Ionicons name="images-outline" size={48} color={Colors.textGrey} />
+            <Text style={styles.emptyPostsText}>
+              Você ainda não publicou nada
+            </Text>
+            <TouchableOpacity 
+              style={styles.createPostButton}
+              onPress={() => router.push('/home')}
+            >
+              <Text style={styles.createPostText}>Criar Post</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <PostList 
+            posts={userPosts}
+            onItemLongPress={handleLongPress}
+            loading={false}
+          />
+        )}
+      </View>
+      
+      <ActionModal 
+        visible={actionModalVisible}
+        onClose={() => setActionModalVisible(false)}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
+      />
+
+      <PostForm 
+        visible={modalVisible}
+        isEditing={isEditing}
+        selectedPost={selectedPost}
+        onClose={closeModal}
+        onSave={handleSave}
+        loading={savingPost}
+      />
+    </View>
   );
 }
 
@@ -212,120 +287,109 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 14,
-    fontFamily: "JetBrainsMono_400Regular",
     color: Colors.subtitleGrey,
+  },
+  profileHeader: {
+    backgroundColor: "white",
+    padding: 20,
+    paddingTop: 60,
+  },
+  profileInfo: {
+    flexDirection: "row",
+    marginBottom: 15,
+  },
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 15,
+  },
+  profileImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#EEEEEE",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
   },
   userInfo: {
     flex: 1,
+    justifyContent: "center",
   },
-  name: {
-    fontSize: 20,
-    fontFamily: "JetBrainsMono_600SemiBold",
-    color: "white",
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 14,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.backgroundGrey,
-    opacity: 0.8,
-    marginBottom: 4,
-  },
-  joinDate: {
-    fontSize: 12,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.backgroundGrey,
-    opacity: 0.7,
-  },
-  verificatonStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statsContainer: {
-    flexDirection: "row",
-    backgroundColor: Colors.backgroundGrey,
-    borderRadius: 8,
-    margin: 16,
-    padding: 16
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
+  userName: {
     fontSize: 18,
-    fontFamily: "JetBrainsMono_700Bold",
+    fontWeight: "bold",
     color: Colors.titleGrey,
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.subtitleGrey,
+  userEmail: {
+    fontSize: 14,
+    color: Colors.textGrey,
+    marginBottom: 8,
   },
-  section: {
-    backgroundColor: Colors.backgroundGrey,
-    borderRadius: 8,
-    margin: 16,
-    marginTop: 0,
+  statsRow: {
+    flexDirection: "row",
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginRight: 20,
+  },
+  statCount: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: Colors.titleGrey,
+    marginRight: 4,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: Colors.textGrey,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: "#EEEEEE",
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 10,
+  },
+  logoutText: {
+    color: "#E53935",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  postsContainer: {
+    flex: 1,
     padding: 16,
   },
   sectionTitle: {
     fontSize: 16,
-    fontFamily: "JetBrainsMono_600SemiBold",
+    fontWeight: "bold",
     color: Colors.titleGrey,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  emptyPosts: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    marginTop: 80,
   },
-  settingInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+  emptyPostsText: {
+    color: Colors.textGrey,
+    marginTop: 10,
+    marginBottom: 20,
   },
-  settingLabel: {
-    fontSize: 14,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.titleGrey,
-    marginLeft: 12,
+  createPostButton: {
+    backgroundColor: Colors.titleGrey,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
-  menuItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  menuItemLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  menuItemText: {
-    fontSize: 14,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.titleGrey,
-    marginLeft: 12,
-  },
-  logoutItem: {
-    borderBottomWidth: 0,
-  },
-  logoutText: {
-    color: "#E53935",
-  },
-  footer: {
-    padding: 20,
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 12,
-    fontFamily: "JetBrainsMono_400Regular",
-    color: Colors.subtitleGrey,
-    marginBottom: 4,
-  },
+  createPostText: {
+    color: "white",
+    fontWeight: "500",
+  }
 });
