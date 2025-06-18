@@ -25,14 +25,13 @@ export default function Index() {
       }
     };
 
-    // If user provider is no longer loading OR we have a user, we can stop initializing
+
     if (!loading || user) {
       setInitializing(false);
     } else {
       checkAuthState();
     }
     
-    // Add a safety timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
       if (initializing) {
         console.log('[Index] Safety timeout triggered - forcing initialization complete');
@@ -57,7 +56,6 @@ export default function Index() {
   if (user) {
     return <Redirect href="/home" />;
   } else {
-    // Changed from register to login for better user experience
     return <Redirect href="/login" />;
   }
 }
