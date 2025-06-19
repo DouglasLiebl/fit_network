@@ -25,11 +25,11 @@ export default function ActionModal({
           <Text style={styles.actionModalTitle}>Opções</Text>
           
           <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
-            <Text style={styles.actionButtonText}>Editar Despesa</Text>
+            <Text style={styles.actionButtonText}>Editar Post</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionButton} onPress={onDelete}>
-            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Excluir Despesa</Text>
+            <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Excluir Post</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 

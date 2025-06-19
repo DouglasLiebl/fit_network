@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useUser } from "@/context/user_provider";
 import Colors from "@/constants/Colors";
 import { getAuth, signOut } from "firebase/auth";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from "firebase/firestore";
@@ -16,9 +16,18 @@ import PostForm from "@/components/PostForm";
 export default function Profile(): React.JSX.Element {
   const { user, setUser } = useUser();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const auth = getAuth();
   const db = getFirestore();
+  
+  const profileUserId = params.userId as string || (user?.uid || "");
+  const isCurrentUser = !params.userId || profileUserId === user?.uid;
+  
   const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<{
+    displayName?: string;
+    photoURL?: string | null;
+  } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [postsCount, setPostsCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
@@ -28,23 +37,64 @@ export default function Profile(): React.JSX.Element {
   const [savingPost, setSavingPost] = useState(false);
 
   useEffect(() => {
-    if (user && user.uid) {
+    if (profileUserId) {
+      fetchProfileData();
       fetchUserPosts();
     } else {
       setLoading(false);
     }
-  }, [user]);
-
-  const fetchUserPosts = async () => {
-    if (!user?.uid) return;
+  }, [profileUserId]);
+  
+  useFocusEffect(
+    useCallback(() => {
+      if (profileUserId) {
+        fetchUserPosts(true);
+      }
+      return () => {};
+    }, [profileUserId])
+  );
+  
+  const fetchProfileData = async () => {
+    if (!profileUserId) return;
     
     try {
-      setLoading(true);
+      if (isCurrentUser && user) {
+        setProfileData({
+          displayName: user.displayName || "Usuário",
+          photoURL: user.photoURL
+        });
+        return;
+      }
+      
+      const userDoc = await getDoc(doc(db, "users", profileUserId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setProfileData({
+          displayName: userData.displayName || "Usuário",
+          photoURL: userData.photoURL
+        });
+      } else {
+        Alert.error("Erro", "Perfil não encontrado.");
+        router.back();
+      }
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+      Alert.error("Erro", "Falha ao carregar dados do perfil.");
+    }
+  };
+
+  const fetchUserPosts = async (silentRefresh = false) => {
+    if (!profileUserId) return;
+    
+    try {
+      if (!silentRefresh) {
+        setLoading(true);
+      }
       
       const postsRef = collection(db, "posts");
       const userPostsQuery = query(
         postsRef, 
-        where("userId", "==", user.uid),
+        where("userId", "==", profileUserId),
         orderBy("createdAt", "desc")
       );
       
@@ -57,10 +107,14 @@ export default function Profile(): React.JSX.Element {
           id: doc.id,
           userId: data.userId,
           username: data.username,
+          userProfileImage: data.userProfileImage || null,
           description: data.description,
           imageUrl: data.imageUrl,
           location: data.location,
           createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+          likes: data.likes || 0,
+          likedBy: data.likedBy || [],
         });
       });
       
@@ -68,9 +122,13 @@ export default function Profile(): React.JSX.Element {
       setPostsCount(posts.length);
     } catch (error) {
       console.error("Error fetching user posts:", error);
-      Alert.error("Erro", "Falha ao carregar seus posts.");
+      if (!silentRefresh) {
+        Alert.error("Erro", "Falha ao carregar posts.");
+      }
     } finally {
-      setLoading(false);
+      if (!silentRefresh) {
+        setLoading(false);
+      }
     }
   };
 
@@ -124,12 +182,13 @@ export default function Profile(): React.JSX.Element {
         
         await deleteDoc(doc(db, "posts", selectedPost.id));
         
-        // Update state
         const updatedPosts = userPosts.filter(post => post.id !== selectedPost.id);
         setUserPosts(updatedPosts);
         setPostsCount(updatedPosts.length);
         
         setSavingPost(false);
+        setSelectedPost(null);
+        
         Alert.success("Sucesso", "Post excluído com sucesso!");
       } catch (error: any) {
         setSavingPost(false);
@@ -146,29 +205,43 @@ export default function Profile(): React.JSX.Element {
       return;
     }
 
-    if (isEditing && selectedPost) {
-      try {
-        setSavingPost(true);
+    try {
+      setSavingPost(true);
+      
+      if (isEditing && selectedPost) {
+        const updatedAt = new Date();
         
         await updateDoc(doc(db, "posts", selectedPost.id), {
           description,
           imageUrl,
           location,
+          updatedAt
         });
         
-        // Refresh the posts list
-        await fetchUserPosts();
+        const updatedPosts = userPosts.map(post => {
+          if (post.id === selectedPost.id) {
+            return {
+              ...post,
+              description,
+              imageUrl,
+              location,
+              updatedAt
+            };
+          }
+          return post;
+        });
         
-        setSavingPost(false);
-        setModalVisible(false);
-        setIsEditing(false);
-        setSelectedPost(null);
-        
+        setUserPosts(updatedPosts);
         Alert.success("Sucesso", "Post atualizado com sucesso!");
-      } catch (error: any) {
-        setSavingPost(false);
-        Alert.error("Erro", "Ocorreu um erro ao atualizar o post: " + error.message);
       }
+      
+      setSavingPost(false);
+      setModalVisible(false);
+      setIsEditing(false);
+      setSelectedPost(null);
+    } catch (error: any) {
+      setSavingPost(false);
+      Alert.error("Erro", "Ocorreu um erro ao atualizar o post: " + error.message);
     }
   };
 
@@ -189,11 +262,10 @@ export default function Profile(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-      {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.profileInfo}>
-          {user?.photoURL ? (
-            <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
+          {profileData?.photoURL ? (
+            <Image source={{ uri: profileData.photoURL }} style={styles.profileImage} />
           ) : (
             <View style={styles.profileImagePlaceholder}>
               <Ionicons name="person" size={40} color="#CCCCCC" />
@@ -202,11 +274,13 @@ export default function Profile(): React.JSX.Element {
           
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {user?.displayName || 'Usuário'}
+              {profileData?.displayName || 'Usuário'}
             </Text>
-            <Text style={styles.userEmail}>
-              {user?.email}
-            </Text>
+            {isCurrentUser && (
+              <Text style={styles.userEmail}>
+                {user?.email}
+              </Text>
+            )}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statCount}>{postsCount}</Text>
@@ -218,39 +292,48 @@ export default function Profile(): React.JSX.Element {
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <MaterialIcons name="logout" size={18} color="#E53935" />
-          <Text style={styles.logoutText}>Sair</Text>
-        </TouchableOpacity>
+        {isCurrentUser && (
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <MaterialIcons name="logout" size={18} color="#E53935" />
+            <Text style={styles.logoutText}>Sair</Text>
+          </TouchableOpacity>
+        )}
       </View>
       
       <View style={styles.separator} />
 
-      {/* User Posts */}
       <View style={styles.postsContainer}>
-        <Text style={styles.sectionTitle}>Meus Posts</Text>
+        <Text style={styles.sectionTitle}>
+          {isCurrentUser ? 'Meus Posts' : 'Posts'}
+        </Text>
         
         {userPosts.length === 0 ? (
           <View style={styles.emptyPosts}>
             <Ionicons name="images-outline" size={48} color={Colors.textGrey} />
             <Text style={styles.emptyPostsText}>
-              Você ainda não publicou nada
+              {isCurrentUser 
+                ? 'Você ainda não publicou nada'
+                : 'Este usuário ainda não publicou nada'
+              }
             </Text>
-            <TouchableOpacity 
-              style={styles.createPostButton}
-              onPress={() => router.push('/home')}
-            >
-              <Text style={styles.createPostText}>Criar Post</Text>
-            </TouchableOpacity>
+            {isCurrentUser && (
+              <TouchableOpacity 
+                style={styles.createPostButton}
+                onPress={() => router.push('/home')}
+              >
+                <Text style={styles.createPostText}>Criar Post</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <PostList 
             posts={userPosts}
-            onItemLongPress={handleLongPress}
+            onItemLongPress={isCurrentUser ? handleLongPress : (() => {})} 
             loading={false}
+            refreshPosts={fetchUserPosts}
           />
         )}
       </View>
