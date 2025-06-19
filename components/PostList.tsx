@@ -31,9 +31,9 @@ export default function PostList({ posts, onItemLongPress, loading }: PostListPr
   }
 
   const renderItem = ({ item }: { item: Post }) => (
-    <TouchableOpacity 
+    <View
       style={styles.postCard}
-      onLongPress={() => onItemLongPress(item)}
+     
     >
       <View style={styles.postHeader}>
         <Text style={styles.username}>{item.username}</Text>
@@ -41,14 +41,6 @@ export default function PostList({ posts, onItemLongPress, loading }: PostListPr
           {format(item.createdAt, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
         </Text>
       </View>
-      
-      {item.description ? (
-        <Text style={styles.description}>{item.description}</Text>
-      ) : null}
-      
-      {item.imageUrl ? (
-        <Image source={{ uri: item.imageUrl }} style={styles.image} />
-      ) : null}
       
       {item.location ? (
         <View style={styles.locationContainer}>
@@ -58,7 +50,19 @@ export default function PostList({ posts, onItemLongPress, loading }: PostListPr
           </Text>
         </View>
       ) : null}
-    </TouchableOpacity>
+
+      {item.description ? (
+        <Text style={styles.description}>{item.description}</Text>
+      ) : null}
+      
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={styles.image} />
+      ) : null}
+      
+      <TouchableOpacity>
+        <Ionicons name="heart" size={26} color={"#e02c1f"} />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -106,6 +110,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.borderGrey
   },
   postHeader: {
     flexDirection: 'row',

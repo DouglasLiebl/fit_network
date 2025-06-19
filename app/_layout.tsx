@@ -136,7 +136,7 @@ function RootLayoutNav() {
         <Stack.Screen 
           name="home" 
           options={{
-            headerTitle: 'Minhas Despesas',
+            headerTitle: 'Home',
             headerTitleStyle: {
               fontFamily: 'JetBrainsMono_600SemiBold',
               fontSize: 20,
