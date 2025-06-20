@@ -17,6 +17,8 @@ export default function Register(): React.JSX.Element {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
   const { setUser } = useUser();
@@ -40,7 +42,7 @@ export default function Register(): React.JSX.Element {
           email: email,
           phoneNumber: phoneNumber || null,
           displayName: response.user.displayName || null,
-          photoURL: response.user.photoURL || null,
+          photoURL: image,
           emailVerified: response.user.emailVerified,
           createdAt: new Date(),
           lastLogin: new Date(),
