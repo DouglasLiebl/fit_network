@@ -161,7 +161,7 @@ export default function PostForm({
             <View style={styles.mediaButtons}>
               <TouchableOpacity 
                 style={styles.mediaButton} 
-                onPress={async () => await CameraUtils.takePicture(setImage, isEditing)}
+                onPress={async () => await CameraUtils.takePicture(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
                 <Ionicons name="camera" size={24} color={Colors.titleGrey} />
@@ -169,7 +169,7 @@ export default function PostForm({
               
               <TouchableOpacity 
                 style={styles.mediaButton} 
-                onPress={async () => await CameraUtils.pickImage(setImage, isEditing)}
+                onPress={async () => await CameraUtils.pickImage(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
                 <Ionicons name="images" size={24} color={Colors.titleGrey} />

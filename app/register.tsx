@@ -13,6 +13,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
 import CameraUtils from "@/utils/cameraUtils";
 import { Ionicons } from "@expo/vector-icons";
+import { deleteObject, getStorage, ref } from "firebase/storage";
 
 export default function Register(): React.JSX.Element {
   console.log('[Register] Component initializing');
@@ -105,7 +106,14 @@ export default function Register(): React.JSX.Element {
             </View>
           )}
             <TouchableOpacity
-              onPress={async () => await CameraUtils.pickImage(setImage)}
+              onPress={async () => {
+                const storage = getStorage();
+                const curImage = image;
+                await CameraUtils.pickImage(setImage, 'pfp')
+                if (curImage) {
+                  await deleteObject(ref(storage, image))
+                }
+              }}
               style={{ ...style.mediaButton, width: 100}}
             >
               <Ionicons name="camera" size={24} color="#000" />

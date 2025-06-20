@@ -5,7 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 export default class CameraUtils {
     public static takePicture = async (
         setImage: (url: string) => void,
-        isEditing: boolean = false,
+        imageType: string = 'posts',
+        upload: boolean = false,
     ) => {
         const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     
@@ -25,8 +26,8 @@ export default class CameraUtils {
                 const imageUri = result.assets[0].uri;
                 setImage(imageUri);
                 
-                if (!isEditing) {
-                    this.uploadImage(imageUri, setImage);
+                if (upload) {
+                    this.uploadImage(imageUri, setImage, imageType);
                 }
             }
         } catch (error) {
@@ -36,7 +37,8 @@ export default class CameraUtils {
     
     public static pickImage = async (
         setImage: (url: string) => void,
-        isEditing: boolean = false,
+        imageType: string = 'posts',
+        upload: boolean = false,
     ) => {
         const galleryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -47,18 +49,18 @@ export default class CameraUtils {
     
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.7,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.7,
             });
     
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 const imageUri = result.assets[0].uri;
                 setImage(imageUri);
                 
-                if (!isEditing) {
-                    this.uploadImage(imageUri, setImage);
+                if (upload) {
+                    this.uploadImage(imageUri, setImage, imageType);
                 }
             }
         } catch (error) {
@@ -69,6 +71,7 @@ export default class CameraUtils {
     public static uploadImage = async (
         uri: string,
         setImage: (url: string) => void,
+        imageType: string = 'posts',
     ): Promise<string | null> => {
         if (!uri) return null;
     
@@ -77,7 +80,7 @@ export default class CameraUtils {
             const blob = await response.blob();
             
             const storage = getStorage();
-            const filename = `posts/${Date.now()}_${Math.random().toString(36).substring(7)}`;
+            const filename = `${imageType}/${Date.now()}_${Math.random().toString(36).substring(7)}`;
             const imageRef = ref(storage, filename);
             
             await uploadBytes(imageRef, blob);
