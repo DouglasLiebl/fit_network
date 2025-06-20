@@ -9,8 +9,10 @@ import { Alert } from "@/utils/alertUtils";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import CameraUtils from "@/utils/cameraUtils";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function Register(): React.JSX.Element {
   console.log('[Register] Component initializing');
@@ -93,6 +95,32 @@ export default function Register(): React.JSX.Element {
       <View style={style.subContainer}>
         <TitleText value="Crie sua conta" />
         <SubtitleText value="Preencha os campos abaixo para começar a gerenciar suas despesas pessoais" />
+        <View style={{ flexDirection: "row", width: 100, alignItems: "center", justifyContent: "center", marginVertical: 10 }}>
+          {image ? (
+            <View>
+              <Image source={{ uri: image }} style={style.mediaButton} />
+            </View>
+          ) : (
+            <View>
+            </View>
+          )}
+            <TouchableOpacity
+              onPress={async () => await CameraUtils.pickImage(setImage)}
+              style={{ ...style.mediaButton, width: 100}}
+            >
+              <Ionicons name="camera" size={24} color="#000" />
+              <Text style={{ color: "#000", fontSize: 12 }}>{image ? "Alterar Foto" : "Adicionar Foto"}</Text>
+            </TouchableOpacity>
+        </View>
+        <SubtitleText value="Foto de perfil (opcional)" />
+        <InputField 
+          value={name} 
+          onChange={(text: any) => {
+            setName(text);
+          }} 
+          label={"Nome"} 
+          secure={false}
+        />
         <InputField 
           value={email} 
           onChange={(text: any) => {
@@ -140,5 +168,14 @@ const style = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 12,
     width: "80%",
-  }
+  },
+  mediaButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
 })
