@@ -40,6 +40,13 @@ export default function Register(): React.JSX.Element {
       const userId = response.user.uid;
       
       try {
+        if (image) {
+          await CameraUtils.uploadImage(image, setImage, 'pfp');
+          console.log('[handleRegister] Image uploaded successfully');
+        } else {
+          console.log('[handleRegister] No image provided, skipping upload');
+        }
+
         await setDoc(doc(db, "users", userId), {
           userId: userId,
           email: email,
@@ -106,14 +113,7 @@ export default function Register(): React.JSX.Element {
             </View>
           )}
             <TouchableOpacity
-              onPress={async () => {
-                const storage = getStorage();
-                const curImage = image;
-                await CameraUtils.pickImage(setImage, 'pfp')
-                if (curImage) {
-                  await deleteObject(ref(storage, image))
-                }
-              }}
+              onPress={async () => await CameraUtils.pickImage(setImage, 'pfp', false)}
               style={{ ...style.mediaButton, width: 100}}
             >
               <Ionicons name="camera" size={24} color="#000" />
@@ -127,6 +127,15 @@ export default function Register(): React.JSX.Element {
             setName(text);
           }} 
           label={"Nome"} 
+          secure={false}
+        />
+        <InputField 
+          value={phoneNumber} 
+          onChange={(text: any) => {
+            console.log('[Register] Phone number changed');
+            setPhoneNumber(text);
+          }} 
+          label={"Telefone (opcional)"} 
           secure={false}
         />
         <InputField 
@@ -146,15 +155,6 @@ export default function Register(): React.JSX.Element {
           }} 
           label={"Senha"} 
           secure={true} 
-        />
-        <InputField 
-          value={phoneNumber} 
-          onChange={(text: any) => {
-            console.log('[Register] Phone number changed');
-            setPhoneNumber(text);
-          }} 
-          label={"Telefone (opcional)"} 
-          secure={false}
         />
         <Button value={"Criar Conta"} onPress={handleRegister} loading={loading} />
       </View>
