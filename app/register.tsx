@@ -6,7 +6,7 @@ import Colors from "@/constants/Colors";
 import { auth } from "@/context/firebase";
 import { useUser } from "@/context/user_provider";
 import { Alert } from "@/utils/alertUtils";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { AuthErrorCodes, createUserWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -80,13 +80,13 @@ export default function Register(): React.JSX.Element {
       let errorMessage = error.message;
       let errorType = "Erro";
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === AuthErrorCodes.EMAIL_EXISTS) {
         errorType = "Email Já Utilizado";
         errorMessage = "Este email já está em uso. Por favor, utilize outro email.";
-      } else if (error.code === 'auth/weak-password') {
+      } else if (error.code === AuthErrorCodes.WEAK_PASSWORD) {
         errorType = "Senha Fraca";
         errorMessage = "Senha muito fraca. Por favor, use uma senha mais forte.";
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.code === AuthErrorCodes.INVALID_EMAIL) {
         errorType = "Email Inválido";
         errorMessage = "Formato de email inválido. Por favor, verifique o email digitado.";
       } else if (error.message.includes('permissions')) {
