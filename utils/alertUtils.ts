@@ -143,7 +143,7 @@ export const Alert = {
       message,
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Confirmar', style: 'default' }
+        { text: 'Confirmar', style: 'destructive' }
       ],
       'warning'
     );

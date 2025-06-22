@@ -1,12 +1,12 @@
 import Colors from '@/constants/Colors';
-import { UserProvider } from '@/context/user_provider';
+import { UserProvider, useUser } from '@/context/user_provider';
 import { JetBrainsMono_100Thin, JetBrainsMono_100Thin_Italic, JetBrainsMono_200ExtraLight, JetBrainsMono_200ExtraLight_Italic, JetBrainsMono_300Light, JetBrainsMono_300Light_Italic, JetBrainsMono_400Regular, JetBrainsMono_400Regular_Italic, JetBrainsMono_500Medium, JetBrainsMono_500Medium_Italic, JetBrainsMono_600SemiBold, JetBrainsMono_600SemiBold_Italic, JetBrainsMono_700Bold, JetBrainsMono_700Bold_Italic, JetBrainsMono_800ExtraBold, JetBrainsMono_800ExtraBold_Italic } from '@expo-google-fonts/jetbrains-mono';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Image, Text, TouchableOpacity } from 'react-native';
 import 'react-native-reanimated';
 import AlertModal from '@/components/AlertModal';
 
@@ -69,10 +69,13 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return <UserProvider>
+          <RootLayoutNav />
+        </UserProvider>;
 }
 
 function RootLayoutNav() {
+  const { user } = useUser();
   const router = useRouter();
   
   const [alertVisible, setAlertVisible] = useState(false);
@@ -89,6 +92,7 @@ function RootLayoutNav() {
   });
 
   useEffect(() => {
+    console.log('[RootLayoutNav] User state:', user);
     global.showAlert = (title, message, type, buttons = [{ text: 'OK', onPress: () => {}, style: 'default' }], onDismiss) => {
       setAlertConfig({
         title,
@@ -103,12 +107,10 @@ function RootLayoutNav() {
       setAlertVisible(true);
     };
   }, []);
-  
   const ProfileButton = () => (
     <TouchableOpacity 
       onPress={() => router.push('/profile')}
       style={{
-        marginRight: 15,
         width: 40,
         height: 40,
         borderRadius: 20,
@@ -117,7 +119,14 @@ function RootLayoutNav() {
         alignItems: 'center',
       }}
     >
-      <Ionicons name="person-circle-outline" size={32} color={Colors.titleGrey} />
+      {user?.photoURL ? (
+        <Image
+          source={{ uri: user.photoURL }}
+          style={{ width: 40, height: 40, borderRadius: 20 }}
+        />
+      ) : (
+        <Ionicons name="person-circle-outline" size={32} color={Colors.titleGrey} />
+      )}
     </TouchableOpacity>
   );
 
@@ -145,7 +154,7 @@ function RootLayoutNav() {
             headerStyle: {
               backgroundColor: Colors.backgroundGrey,
             },
-            headerShadowVisible: false,
+            headerShadowVisible: true,
             headerRight: () => <ProfileButton />,
             headerBackVisible: false,
             headerLeft: () => null,

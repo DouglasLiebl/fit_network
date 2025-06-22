@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { useUser } from "@/context/user_provider";
 import Colors from "@/constants/Colors";
 import { getAuth, signOut } from "firebase/auth";
@@ -12,6 +12,7 @@ import { Post } from "@/@types/Post";
 import PostList from "@/components/PostList";
 import ActionModal from "@/components/ActionModal";
 import PostForm from "@/components/PostForm";
+import ImageModal from "@/components/ImageModal";
 
 export default function Profile(): React.JSX.Element {
   const { user, setUser } = useUser();
@@ -23,6 +24,7 @@ export default function Profile(): React.JSX.Element {
   const [postsCount, setPostsCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [imageModalVisibile, setImageModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
@@ -61,6 +63,7 @@ export default function Profile(): React.JSX.Element {
           imageUrl: data.imageUrl,
           location: data.location,
           createdAt: data.createdAt.toDate(),
+          userProfileImage: data.userProfileImage || null,
         });
       });
       
@@ -124,6 +127,7 @@ export default function Profile(): React.JSX.Element {
         
         await deleteDoc(doc(db, "posts", selectedPost.id));
         
+        // Update state
         const updatedPosts = userPosts.filter(post => post.id !== selectedPost.id);
         setUserPosts(updatedPosts);
         setPostsCount(updatedPosts.length);
@@ -155,6 +159,7 @@ export default function Profile(): React.JSX.Element {
           location,
         });
         
+        // Refresh the posts list
         await fetchUserPosts();
         
         setSavingPost(false);
@@ -187,10 +192,16 @@ export default function Profile(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
+      {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.profileInfo}>
           {user?.photoURL ? (
-            <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
+            <TouchableOpacity 
+              onPress={() => setImageModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
+            </TouchableOpacity>
           ) : (
             <View style={styles.profileImagePlaceholder}>
               <Ionicons name="person" size={40} color="#CCCCCC" />
@@ -213,19 +224,20 @@ export default function Profile(): React.JSX.Element {
               </View>
             </View>
           </View>
-        </View>
 
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <MaterialIcons name="logout" size={18} color="#E53935" />
-          <Text style={styles.logoutText}>Sair</Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <MaterialIcons name="logout" size={18} color="#E53935" />
+            <Text style={styles.logoutText}>Sair</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <View style={styles.separator} />
 
+      {/* User Posts */}
       <View style={styles.postsContainer}>
         <Text style={styles.sectionTitle}>Meus Posts</Text>
         
@@ -258,6 +270,12 @@ export default function Profile(): React.JSX.Element {
         onDelete={handleDeletePost}
       />
 
+      <ImageModal
+        visible={imageModalVisibile && !!user?.photoURL}
+        imageUrl={user?.photoURL!}
+        onClose={() => setImageModalVisible(false)}
+      />
+
       <PostForm 
         visible={modalVisible}
         isEditing={isEditing}
@@ -287,12 +305,11 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     backgroundColor: "white",
-    padding: 20,
-    paddingTop: 60,
+    paddingHorizontal: 10,
   },
   profileInfo: {
     flexDirection: "row",
-    marginBottom: 15,
+    marginVertical: 15,
   },
   profileImage: {
     width: 80,
@@ -350,7 +367,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    marginTop: 10,
   },
   logoutText: {
     color: "#E53935",

@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@/context/user_provider';
 import { getFirestore, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useRouter } from 'expo-router';
+import ImageModal from './ImageModal';
 
 const styles = StyleSheet.create({
   loadingContainer: {
@@ -36,7 +37,7 @@ const styles = StyleSheet.create({
   postCard: {
     backgroundColor: 'white',
     borderRadius: 10,
-    marginBottom: 16,
+    marginTop: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -79,9 +80,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   optionsButton: {
-    paddingHorizontal: 8,
     paddingVertical: 4,
-    marginRight: 4,
+    marginLeft: 8,
   },
   username: {
     fontSize: 16,
@@ -214,6 +214,7 @@ function LikeButton({
 export default function PostList({ posts, onItemLongPress, loading, refreshPosts }: PostListProps) {
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [modalImgUrl, setModalImgUrl] = useState<string|null>(null);
   
   const { user, trackLikedPost, isPostLikedLocally } = useUser();
   const router = useRouter();
@@ -247,6 +248,7 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
       const updatedPost = { ...post };
       
       if (isLiked) {
+        trackLikedPost(post.id, false);
         updatedPost.likes = (updatedPost.likes || 1) - 1;
         updatedPost.likedBy = updatedPost.likedBy?.filter((id: string) => id !== user.uid) || [];
         
@@ -254,9 +256,8 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
           likes: updatedPost.likes,
           likedBy: arrayRemove(user.uid)
         });
-        
-        trackLikedPost(post.id, false);
       } else {
+        trackLikedPost(post.id, true);
         updatedPost.likes = (updatedPost.likes || 0) + 1;
         updatedPost.likedBy = [...(updatedPost.likedBy || []), user.uid];
         
@@ -264,8 +265,6 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
           likes: updatedPost.likes,
           likedBy: arrayUnion(user.uid)
         });
-        
-        trackLikedPost(post.id, true);
       }
       
       const updatedPosts = [...localPosts];
@@ -274,6 +273,7 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
         setLocalPosts(updatedPosts);
       }
     } catch (error) {
+      trackLikedPost(post.id, !isLikedByUser(post));
       console.error("Error updating like status:", error);
     }
   }
@@ -307,7 +307,7 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
               activeOpacity={0.7}
             >
               {item.userProfileImage ? (
-                <Image source={{ uri: item.userProfileImage }} style={styles.userAvatar} />
+                  <Image source={{ uri: item.userProfileImage }} style={styles.userAvatar} />
               ) : (
                 <View style={styles.userAvatarPlaceholder}>
                   <Text style={{ textAlign: 'center' }}>
@@ -318,6 +318,15 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
               <Text style={styles.username}>{item.username}</Text>
             </TouchableOpacity>
             <View style={styles.postHeaderRight}>
+              <View>
+                <Text style={styles.date}>
+                  {format(item.createdAt, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                </Text>
+                {item.updatedAt && (
+                  <Text style={styles.editedText}>(editado)</Text>
+                )}
+              </View>
+
               {isOwnPost && (
                 <TouchableOpacity 
                   style={styles.optionsButton}
@@ -329,16 +338,23 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
                   </Text>
                 </TouchableOpacity>
               )}
-              <View>
-                <Text style={styles.date}>
-                  {format(item.createdAt, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                </Text>
-                {item.updatedAt && (
-                  <Text style={styles.editedText}>(editado)</Text>
-                )}
-              </View>
             </View>
           </View>
+
+          {item.description ? (
+            <Text style={styles.description}>{item.description}</Text>
+          ) : null}
+          
+          {item.imageUrl ? (
+            <TouchableOpacity 
+              onPress={() => setModalImgUrl(item.imageUrl)}
+              activeOpacity={0.7}
+            >
+              <Image source={{ uri: item.imageUrl }} style={styles.image} />
+            </TouchableOpacity>
+          ) : null}
+
+
 
           {item.location ? (
             <View style={styles.locationContainer}>
@@ -350,14 +366,6 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
               </Text>
             </View>
           ) : null}
-
-          {item.description ? (
-            <Text style={styles.description}>{item.description}</Text>
-          ) : null}
-          
-          {item.imageUrl ? (
-            <Image source={{ uri: item.imageUrl }} style={styles.image} />
-          ) : null}
         </View>
         
         <View style={styles.postActions}>
@@ -367,6 +375,12 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
             onPress={() => handleLike(item, index)}
           />
         </View>
+
+        <ImageModal
+          visible={!!modalImgUrl}
+          onClose={() => setModalImgUrl(null)}
+          imageUrl={modalImgUrl || ''}
+        />
       </View>
     );
   }

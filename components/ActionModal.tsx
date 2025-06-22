@@ -4,10 +4,10 @@ import Colors from '@/constants/Colors';
 import { ActionModalProps } from '@/@types/ExpenseTypes';
 
 export default function ActionModal({ 
-  visible, 
-  onClose, 
-  onEdit, 
-  onDelete 
+  visible,
+  onClose,
+  onEdit,
+  onDelete
 }: ActionModalProps): React.JSX.Element {
   return (
     <Modal
@@ -22,13 +22,11 @@ export default function ActionModal({
         onPress={onClose}
       >
         <View style={styles.actionModalView}>
-          <Text style={styles.actionModalTitle}>Opções</Text>
-          
           <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
             <Text style={styles.actionButtonText}>Editar Post</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton} onPress={onDelete}>
+          <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
             <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Excluir Post</Text>
           </TouchableOpacity>
           
@@ -78,6 +76,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     marginVertical: 6,
   },
+  deleteButton: {
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#FFD8D8',
+    marginVertical: 6,
+  },
   actionButtonText: {
     fontSize: 16,
     fontFamily: 'JetBrainsMono_500Medium',
@@ -88,7 +92,6 @@ const styles = StyleSheet.create({
     color: '#E53935',
   },
   cancelActionButton: {
-    marginTop: 6,
-    backgroundColor: '#e0e0e0',
+    marginTop: 50,
   }
 });

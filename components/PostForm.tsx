@@ -3,10 +3,8 @@ import { Modal, View, TextInput, StyleSheet, TouchableOpacity, Text, ActivityInd
 import Colors from '@/constants/Colors';
 import { Post } from '@/@types/Post';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Alert } from '@/utils/alertUtils';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import CameraUtils from '@/utils/cameraUtils';
 
 interface PostFormProps {
