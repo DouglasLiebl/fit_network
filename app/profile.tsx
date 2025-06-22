@@ -272,6 +272,7 @@ export default function Profile(): React.JSX.Element {
             </View>
           )}
           
+          <Text>{user?.photoURL}</Text>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
               {profileData?.displayName || 'Usuário'}

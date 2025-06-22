@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { Alert } from '@/utils/alertUtils';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import CameraUtils from '@/utils/cameraUtils';
 
 interface PostFormProps {
   visible: boolean;
@@ -43,95 +44,13 @@ export default function PostForm({
     }
   }, [visible, isEditing, selectedPost]);
 
-  const takePicture = async () => {
-    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (cameraPermission.status !== 'granted') {
-      Alert.error('Permissão necessária', 'Precisamos de permissão para acessar sua câmera');
-      return;
-    }
-
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
-        setImage(imageUri);
-        
-        if (!isEditing) {
-          uploadImage(imageUri);
-        }
-      }
-    } catch (error) {
-      Alert.error('Erro', 'Não foi possível acessar a câmera');
-    }
-  };
-
-  const pickImage = async () => {
-    const galleryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (galleryPermission.status !== 'granted') {
-      Alert.error('Permissão necessária', 'Precisamos de permissão para acessar sua galeria');
-      return;
-    }
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
-        setImage(imageUri);
-        
-        if (!isEditing) {
-          uploadImage(imageUri);
-        }
-      }
-    } catch (error) {
-      Alert.error('Erro', 'Não foi possível acessar a galeria');
-    }
-  };
-
-  const uploadImage = async (uri: string) => {
-    if (!uri) return null;
-    
-    try {
-      setUploadingImage(true);
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      const storage = getStorage();
-      const filename = `posts/${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const imageRef = ref(storage, filename);
-      
-      await uploadBytes(imageRef, blob);
-      const downloadUrl = await getDownloadURL(imageRef);
-      
-      setImage(downloadUrl);
-      setUploadingImage(false);
-      return downloadUrl;
-    } catch (error: any) {
-      setUploadingImage(false);
-      Alert.error('Erro', 'Falha ao fazer upload da imagem: ' + error.message);
-      return null;
-    }
-  };
-
   const getCurrentLocation = async () => {
     try {
       setLocationLoading(true);
       
       const { status } = await Location.requestForegroundPermissionsAsync();
       
-      if (status !== 'granted') {
+      if (status !== Location.PermissionStatus.GRANTED) {
         Alert.error('Permissão necessária', 'Precisamos de permissão para acessar sua localização');
         setLocationLoading(false);
         return;
@@ -185,8 +104,11 @@ export default function PostForm({
   const handleSubmit = async () => {
     let finalImageUrl = image;
     
-    if (image && !image.startsWith('http')) {
-      finalImageUrl = await uploadImage(image);
+    // If it's a new post and we have a local image URI (not already uploaded)
+    if (!isEditing && image && !image.startsWith('http')) {
+      setUploadingImage(true);
+      finalImageUrl = await CameraUtils.uploadImage(image, setImage);
+      setUploadingImage(false);
     }
     
     onSave(description, finalImageUrl || '', location);
@@ -240,7 +162,7 @@ export default function PostForm({
             <View style={styles.mediaButtons}>
               <TouchableOpacity 
                 style={styles.mediaButton} 
-                onPress={takePicture}
+                onPress={async () => await CameraUtils.takePicture(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
                 <Text>
@@ -250,7 +172,7 @@ export default function PostForm({
               
               <TouchableOpacity 
                 style={styles.mediaButton} 
-                onPress={pickImage}
+                onPress={async () => await CameraUtils.pickImage(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
                 <Text>

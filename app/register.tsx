@@ -6,17 +6,22 @@ import Colors from "@/constants/Colors";
 import { auth } from "@/context/firebase";
 import { useUser } from "@/context/user_provider";
 import { Alert } from "@/utils/alertUtils";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { AuthErrorCodes, createUserWithEmailAndPassword } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+import CameraUtils from "@/utils/cameraUtils";
+import { Ionicons } from "@expo/vector-icons";
+import { deleteObject, getStorage, ref } from "firebase/storage";
 
 export default function Register(): React.JSX.Element {
   console.log('[Register] Component initializing');
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
   const { setUser } = useUser();
@@ -35,12 +40,19 @@ export default function Register(): React.JSX.Element {
       const userId = response.user.uid;
       
       try {
+        if (image) {
+          await CameraUtils.uploadImage(image, setImage, 'pfp');
+          console.log('[handleRegister] Image uploaded successfully');
+        } else {
+          console.log('[handleRegister] No image provided, skipping upload');
+        }
+
         await setDoc(doc(db, "users", userId), {
           userId: userId,
           email: email,
           phoneNumber: phoneNumber || null,
           displayName: response.user.displayName || null,
-          photoURL: response.user.photoURL || null,
+          photoURL: image,
           emailVerified: response.user.emailVerified,
           createdAt: new Date(),
           lastLogin: new Date(),
@@ -68,13 +80,13 @@ export default function Register(): React.JSX.Element {
       let errorMessage = error.message;
       let errorType = "Erro";
       
-      if (error.code === 'auth/email-already-in-use') {
+      if (error.code === AuthErrorCodes.EMAIL_EXISTS) {
         errorType = "Email Já Utilizado";
         errorMessage = "Este email já está em uso. Por favor, utilize outro email.";
-      } else if (error.code === 'auth/weak-password') {
+      } else if (error.code === AuthErrorCodes.WEAK_PASSWORD) {
         errorType = "Senha Fraca";
         errorMessage = "Senha muito fraca. Por favor, use uma senha mais forte.";
-      } else if (error.code === 'auth/invalid-email') {
+      } else if (error.code === AuthErrorCodes.INVALID_EMAIL) {
         errorType = "Email Inválido";
         errorMessage = "Formato de email inválido. Por favor, verifique o email digitado.";
       } else if (error.message.includes('permissions')) {
@@ -91,6 +103,41 @@ export default function Register(): React.JSX.Element {
       <View style={style.subContainer}>
         <TitleText value="Crie sua conta" />
         <SubtitleText value="Preencha os campos abaixo para começar a gerenciar suas despesas pessoais" />
+        <View style={{ flexDirection: "row", width: 100, alignItems: "center", justifyContent: "center", marginVertical: 10 }}>
+          {image ? (
+            <View>
+              <Image source={{ uri: image }} style={style.mediaButton} />
+            </View>
+          ) : (
+            <View>
+            </View>
+          )}
+            <TouchableOpacity
+              onPress={async () => await CameraUtils.pickImage(setImage, 'pfp', false)}
+              style={{ ...style.mediaButton, width: 100}}
+            >
+              <Ionicons name="camera" size={24} color="#000" />
+              <Text style={{ color: "#000", fontSize: 12 }}>{image ? "Alterar Foto" : "Adicionar Foto"}</Text>
+            </TouchableOpacity>
+        </View>
+        <SubtitleText value="Foto de perfil (opcional)" />
+        <InputField 
+          value={name} 
+          onChange={(text: any) => {
+            setName(text);
+          }} 
+          label={"Nome"} 
+          secure={false}
+        />
+        <InputField 
+          value={phoneNumber} 
+          onChange={(text: any) => {
+            console.log('[Register] Phone number changed');
+            setPhoneNumber(text);
+          }} 
+          label={"Telefone (opcional)"} 
+          secure={false}
+        />
         <InputField 
           value={email} 
           onChange={(text: any) => {
@@ -108,15 +155,6 @@ export default function Register(): React.JSX.Element {
           }} 
           label={"Senha"} 
           secure={true} 
-        />
-        <InputField 
-          value={phoneNumber} 
-          onChange={(text: any) => {
-            console.log('[Register] Phone number changed');
-            setPhoneNumber(text);
-          }} 
-          label={"Telefone (opcional)"} 
-          secure={false}
         />
         <Button value={"Criar Conta"} onPress={handleRegister} loading={loading} />
       </View>
@@ -138,5 +176,14 @@ const style = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 12,
     width: "80%",
-  }
+  },
+  mediaButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
 })
