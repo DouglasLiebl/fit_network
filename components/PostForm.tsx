@@ -48,7 +48,6 @@ export default function PostForm({
     try {
       setLocationLoading(true);
       
-      // Request location permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== Location.PermissionStatus.GRANTED) {
@@ -59,7 +58,6 @@ export default function PostForm({
       
       const currentLocation = await Location.getCurrentPositionAsync({});
       
-      // Try to get the address from the coordinates
       try {
         const geocode = await Location.reverseGeocodeAsync({
           latitude: currentLocation.coords.latitude,
@@ -86,7 +84,6 @@ export default function PostForm({
           });
         }
       } catch (error) {
-        // If geocoding fails, just use coordinates
         setLocation({
           latitude: currentLocation.coords.latitude,
           longitude: currentLocation.coords.longitude
@@ -131,7 +128,9 @@ export default function PostForm({
               {isEditing ? 'Editar Post' : 'Novo Post'}
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={Colors.titleGrey} />
+              <Text>
+                <Ionicons name="close" size={24} color={Colors.titleGrey} />
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -152,7 +151,9 @@ export default function PostForm({
                 style={styles.removeImageButton} 
                 onPress={() => setImage(null)}
               >
-                <Ionicons name="close-circle" size={24} color="white" />
+                <Text>
+                  <Ionicons name="close-circle" size={24} color="white" />
+                </Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -164,7 +165,9 @@ export default function PostForm({
                 onPress={async () => await CameraUtils.takePicture(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
-                <Ionicons name="camera" size={24} color={Colors.titleGrey} />
+                <Text>
+                  <Ionicons name="camera" size={24} color={Colors.titleGrey} />
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -172,7 +175,9 @@ export default function PostForm({
                 onPress={async () => await CameraUtils.pickImage(setImage, 'posts', isEditing)}
                 disabled={uploadingImage}
               >
-                <Ionicons name="images" size={24} color={Colors.titleGrey} />
+                <Text>
+                  <Ionicons name="images" size={24} color={Colors.titleGrey} />
+                </Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
@@ -183,11 +188,13 @@ export default function PostForm({
                 onPress={location ? removeLocation : getCurrentLocation}
                 disabled={locationLoading}
               >
-                <Ionicons 
-                  name={location ? "location" : "location-outline"} 
-                  size={24} 
-                  color={location ? "white" : Colors.titleGrey} 
-                />
+                <Text>
+                  <Ionicons 
+                    name={location ? "location" : "location-outline"} 
+                    size={24} 
+                    color={location ? "white" : Colors.titleGrey} 
+                  />
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -220,7 +227,9 @@ export default function PostForm({
           
           {location && (
             <View style={styles.locationInfo}>
-              <Ionicons name="location" size={16} color={Colors.textGrey} />
+              <Text style={{ color: Colors.textGrey }}>
+                <Ionicons name="location" size={16} color={Colors.textGrey} />
+              </Text>
               <Text style={styles.locationText}>
                 {location.address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
               </Text>

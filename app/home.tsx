@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
 import Colors from "@/constants/Colors";
 import { useUser } from "@/context/user_provider";
@@ -9,6 +9,7 @@ import PostList from "@/components/PostList";
 import PostForm from "@/components/PostForm";
 import ActionModal from "@/components/ActionModal";
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from "expo-router";
 
 export default function Home(): React.JSX.Element {
   const [modalVisible, setModalVisible] = useState(false);
@@ -28,10 +29,22 @@ export default function Home(): React.JSX.Element {
       setFetchingData(false);
     }
   }, [user]);
+  
+  useFocusEffect(
+    useCallback(() => {
+      if (user && user.uid) {
+        fetchPosts(true);
+      }
+      return () => {};
+    }, [user])
+  );
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (silentRefresh = false) => {
     try {
-      setFetchingData(true);
+      if (!silentRefresh) {
+        setFetchingData(true);
+      }
+      
       const q = query(
         collection(db, "posts"),
         orderBy("createdAt", "desc")
@@ -46,18 +59,28 @@ export default function Home(): React.JSX.Element {
           id: doc.id,
           userId: data.userId,
           username: data.username,
+          userProfileImage: data.userProfileImage || null,
           description: data.description,
           imageUrl: data.imageUrl,
           location: data.location,
           createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+          likes: data.likes || 0,
+          likedBy: data.likedBy || [],
         });
       });
       
       setPosts(fetchedPosts);
-      setFetchingData(false);
+      if (!silentRefresh) {
+        setFetchingData(false);
+      }
     } catch (error) {
-      setFetchingData(false);
-      Alert.error("Erro", "Não foi possível carregar os posts.");
+      if (!silentRefresh) {
+        setFetchingData(false);
+        Alert.error("Erro", "Não foi possível carregar os posts.");
+      } else {
+        console.error("Silent refresh failed:", error);
+      }
     }
   };
 
@@ -134,22 +157,54 @@ export default function Home(): React.JSX.Element {
       setLoading(true);
       
       if (isEditing && selectedPost) {
-        await updateDoc(doc(db, "posts", selectedPost.id), {
+        const postRef = doc(db, "posts", selectedPost.id);
+        const updatedAt = new Date();
+        
+        await updateDoc(postRef, {
           description: description,
           imageUrl: imageUrl,
           location: location,
+          updatedAt: updatedAt
         });
         
+        const updatedPosts = posts.map(post => {
+          if (post.id === selectedPost.id) {
+            return {
+              ...post,
+              description,
+              imageUrl,
+              location,
+              updatedAt
+            };
+          }
+          return post;
+        });
+        
+        setPosts(updatedPosts);
         Alert.success('Sucesso', 'Post atualizado com sucesso!');
       } else {
-        await addDoc(collection(db, "posts"), {
+        const newPostData = {
           userId: user.uid,
           username: user.displayName || 'Usuário',
+          userProfileImage: user.photoURL || null,
           description: description,
           imageUrl: imageUrl,
           location: location,
-          createdAt: new Date()
-        });
+          createdAt: new Date(),
+          likes: 0,
+          likedBy: [],
+          updatedAt: null
+        };
+        
+        const docRef = await addDoc(collection(db, "posts"), newPostData);
+        
+        const newPost: Post = {
+          ...newPostData,
+          id: docRef.id,
+          createdAt: newPostData.createdAt
+        };
+        
+        setPosts([newPost, ...posts]);
         
         Alert.success('Sucesso', 'Post publicado com sucesso!');
       }
@@ -158,8 +213,6 @@ export default function Home(): React.JSX.Element {
       setModalVisible(false);
       setIsEditing(false);
       setSelectedPost(null);
-      
-      fetchPosts();
     } catch (error: any) {
       setLoading(false);
       Alert.error('Erro', `Erro ao ${isEditing ? 'atualizar' : 'publicar'} post: ` + error.message);
@@ -179,13 +232,16 @@ export default function Home(): React.JSX.Element {
           posts={posts}
           onItemLongPress={handleLongPress}
           loading={fetchingData}
+          refreshPosts={fetchPosts}
         />
       </View>
       <TouchableOpacity 
         style={styles.addButton} 
         onPress={openAddModal}
       >
-        <Ionicons name="camera" size={24} color="white" />
+        <Text>
+          <Ionicons name="camera" size={24} color="white" />
+        </Text>
       </TouchableOpacity>
       <PostForm 
         visible={modalVisible}
