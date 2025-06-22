@@ -6,7 +6,7 @@ import Colors from "@/constants/Colors";
 import { auth } from "@/context/firebase";
 import { useUser } from "@/context/user_provider";
 import { Alert } from "@/utils/alertUtils";
-import { AuthErrorCodes, createUserWithEmailAndPassword } from "firebase/auth";
+import { AuthErrorCodes, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -33,26 +33,40 @@ export default function Register(): React.JSX.Element {
       return;
     }
 
+    if (!name) {
+      Alert.warning("Atenção", "Por favor, informe seu nome.");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await createUserWithEmailAndPassword(auth, email, password);
       
       const userId = response.user.uid;
+      let profilePhotoURL = null;
       
       try {
+        // Upload profile image if available
         if (image) {
-          await CameraUtils.uploadImage(image, setImage, 'pfp');
+          profilePhotoURL = await CameraUtils.uploadImage(image, setImage, 'pfp');
           console.log('[handleRegister] Image uploaded successfully');
         } else {
           console.log('[handleRegister] No image provided, skipping upload');
         }
 
+        // Update Firebase Auth user profile with name and photo
+        await updateProfile(response.user, {
+          displayName: name,
+          photoURL: profilePhotoURL || null
+        });
+
+        // Save user data to Firestore
         await setDoc(doc(db, "users", userId), {
           userId: userId,
           email: email,
           phoneNumber: phoneNumber || null,
-          displayName: response.user.displayName || null,
-          photoURL: image,
+          displayName: name,
+          photoURL: profilePhotoURL,
           emailVerified: response.user.emailVerified,
           createdAt: new Date(),
           lastLogin: new Date(),

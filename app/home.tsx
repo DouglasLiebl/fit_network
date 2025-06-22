@@ -10,6 +10,7 @@ import PostForm from "@/components/PostForm";
 import ActionModal from "@/components/ActionModal";
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from "expo-router";
+import UserUtils from "@/utils/userUtils";
 
 export default function Home(): React.JSX.Element {
   const [modalVisible, setModalVisible] = useState(false);
@@ -183,10 +184,13 @@ export default function Home(): React.JSX.Element {
         setPosts(updatedPosts);
         Alert.success('Sucesso', 'Post atualizado com sucesso!');
       } else {
+        const currentUser = await UserUtils.ensureUserProfile();
+        const displayName = UserUtils.getUserDisplayName(currentUser || user);
+        
         const newPostData = {
           userId: user.uid,
-          username: user.displayName || 'Usuário',
-          userProfileImage: user.photoURL || null,
+          username: displayName,
+          userProfileImage: (currentUser || user).photoURL || null,
           description: description,
           imageUrl: imageUrl,
           location: location,

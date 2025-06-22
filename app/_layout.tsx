@@ -153,8 +153,8 @@ function RootLayoutNav() {
         />
         <Stack.Screen 
           name="profile" 
-          options={{
-            headerTitle: 'Meu Perfil',
+          options={({ route }) => ({
+            headerTitle: 'Perfil',
             headerTitleStyle: {
               fontFamily: 'JetBrainsMono_600SemiBold',
               fontSize: 18,
@@ -165,7 +165,8 @@ function RootLayoutNav() {
             },
             headerShadowVisible: false,
             headerTintColor: Colors.titleGrey,
-          }} 
+            headerBackVisible: true,
+          })}
         />
       </Stack>
       
