@@ -10,8 +10,6 @@ export default function Index() {
   console.log('[Index] Component initializing');
   const [initializing, setInitializing] = useState(true);
   const { user, loading } = useUser();
-  
-  console.log('[Index] Current state from UserProvider', { hasUser: !!user, loading });
 
   useEffect(() => {
     const checkAuthState = async () => {
@@ -47,7 +45,7 @@ export default function Index() {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.backgroundGrey }}>
         <ActivityIndicator size="large" color={Colors.titleGrey} />
         <Text style={{ marginTop: 10, color: Colors.titleGrey, fontFamily: 'JetBrainsMono_400Regular' }}>
-          Verificando autenticação...
+          Carregando, por favor aguarde...
         </Text>
       </View>
     );

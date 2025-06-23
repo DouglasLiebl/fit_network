@@ -269,11 +269,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.backgroundGrey,
-    paddingTop: 20,
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 10,
   },
   addButton: {
     backgroundColor: Colors.titleGrey,
