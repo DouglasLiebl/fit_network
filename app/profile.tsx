@@ -4,7 +4,7 @@ import { useUser } from "@/context/user_provider";
 import Colors from "@/constants/Colors";
 import { getAuth, signOut } from "firebase/auth";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, AntDesign } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from "firebase/firestore";
 import { Alert } from "@/utils/alertUtils";
@@ -14,6 +14,7 @@ import ActionModal from "@/components/ActionModal";
 import PostForm from "@/components/PostForm";
 import ImageModal from "@/components/ImageModal";
 import ProfilePhotoModal from "@/components/ProfilePhotoModal";
+import EditProfileModal from "@/components/EditProfileModal";
 import { CacheUtils } from "@/utils/cacheUtils";
 
 export default function Profile(): React.JSX.Element {
@@ -30,6 +31,7 @@ export default function Profile(): React.JSX.Element {
   const [profileData, setProfileData] = useState<{
     displayName?: string;
     photoURL?: string | null;
+    phoneNumber?: string | null;
   } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [postsCount, setPostsCount] = useState(0);
@@ -37,6 +39,7 @@ export default function Profile(): React.JSX.Element {
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [profilePhotoModalVisible, setProfilePhotoModalVisible] = useState(false);
+  const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
@@ -76,12 +79,14 @@ export default function Profile(): React.JSX.Element {
           
           setProfileData({
             displayName: currentUser.displayName || "Usuário",
-            photoURL: photoURL
+            photoURL: photoURL,
+            phoneNumber: userDoc.exists() ? userDoc.data().phoneNumber || null : null
           });
         } else {
           setProfileData({
             displayName: user.displayName || "Usuário",
-            photoURL: user.photoURL ? `${user.photoURL}?t=${Date.now()}` : null
+            photoURL: user.photoURL ? `${user.photoURL}?t=${Date.now()}` : null,
+            phoneNumber: null
           });
         }
         return;
@@ -94,7 +99,8 @@ export default function Profile(): React.JSX.Element {
         
         setProfileData({
           displayName: userData.displayName || "Usuário",
-          photoURL: photoURL
+          photoURL: photoURL,
+          phoneNumber: userData.phoneNumber || null
         });
       } else {
         Alert.error("Erro", "Perfil não encontrado.");
@@ -264,41 +270,40 @@ export default function Profile(): React.JSX.Element {
     <View style={styles.container}>
       {/* Profile Header */}
       <View style={styles.profileHeader}>
+        {/* Top section with photo, name and stats */}
         <View style={styles.profileInfo}>
-          <TouchableOpacity 
-            onPress={() => {
-              if (isCurrentUser) {
-                setProfilePhotoModalVisible(true);
-              } else if (profileData?.photoURL) {
-                setImageModalVisible(true);
-              }
-            }}
-            activeOpacity={0.7}
-          >
-            {profileData?.photoURL ? (
-              <Image 
-                source={{ 
-                  uri: profileData.photoURL,
-                  cache: 'reload'
-                }} 
-                style={styles.profileImage} 
-              />
-            ) : (
-              <View style={styles.profileImagePlaceholder}>
-                <Ionicons name="person" size={40} color="#CCCCCC" />
-                {isCurrentUser && (
-                  <View style={styles.editIconContainer}>
-                    <Ionicons name="camera" size={16} color="white" />
-                  </View>
-                )}
-              </View>
-            )}
-            {isCurrentUser && profileData?.photoURL && (
-              <View style={styles.editIconContainer}>
-                <Ionicons name="camera" size={16} color="white" />
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.profileImageContainer}>
+            <TouchableOpacity 
+              onPress={() => {
+                if (isCurrentUser) {
+                  setProfilePhotoModalVisible(true);
+                } else if (profileData?.photoURL) {
+                  setImageModalVisible(true);
+                }
+              }}
+              activeOpacity={0.7}
+              style={styles.profileTouchable}
+            >
+              {profileData?.photoURL ? (
+                <Image 
+                  source={{ 
+                    uri: profileData.photoURL,
+                    cache: 'reload'
+                  }} 
+                  style={styles.profileImage} 
+                />
+              ) : (
+                <View style={styles.profileImagePlaceholder}>
+                  <Ionicons name="person" size={40} color="#CCCCCC" />
+                </View>
+              )}
+              {isCurrentUser && (
+                <View style={styles.editIconContainer}>
+                  <Ionicons name="camera" size={16} color="white" />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
@@ -318,8 +323,19 @@ export default function Profile(): React.JSX.Element {
               </View>
             </View>
           </View>
+        </View>
 
-          {isCurrentUser && (
+        {/* Action buttons row */}
+        {isCurrentUser && (
+          <View style={styles.actionButtonsRow}>
+            <TouchableOpacity 
+              style={styles.editProfileButton}
+              onPress={() => setEditProfileModalVisible(true)}
+            >
+              <Ionicons name="pencil" size={16} color="white" />
+              <Text style={styles.editProfileText}>Editar Perfil</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={styles.logoutButton}
               onPress={handleLogout}
@@ -327,8 +343,8 @@ export default function Profile(): React.JSX.Element {
               <MaterialIcons name="logout" size={18} color="#E53935" />
               <Text style={styles.logoutText}>Sair</Text>
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        )}
       </View>
       
       <View style={styles.separator} />
@@ -399,6 +415,20 @@ export default function Profile(): React.JSX.Element {
         onSave={handleSave}
         loading={savingPost}
       />
+
+      <EditProfileModal 
+        visible={editProfileModalVisible}
+        onClose={() => setEditProfileModalVisible(false)}
+        onUpdate={() => {
+          fetchProfileData();
+          fetchUserPosts();
+        }}
+        userData={{
+          displayName: profileData?.displayName,
+          email: user?.email,
+          phoneNumber: profileData?.phoneNumber
+        }}
+      />
     </View>
   );
 }
@@ -420,17 +450,27 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     backgroundColor: "white",
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   profileInfo: {
     flexDirection: "row",
-    marginVertical: 15,
+    marginBottom: 16,
+  },
+  profileImageContainer: {
+    marginRight: 15,
+    position: 'relative',
+  },
+  profileTouchable: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    position: 'relative',
   },
   profileImage: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    marginRight: 15,
   },
   profileImagePlaceholder: {
     width: 80,
@@ -439,7 +479,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#EEEEEE",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
   },
   userInfo: {
     flex: 1,
@@ -455,6 +494,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textGrey,
     marginBottom: 8,
+  },
+  userPhone: {
+    fontSize: 14,
+    color: Colors.textGrey,
+    marginBottom: 8,
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 8,
   },
   statsRow: {
     flexDirection: "row",
@@ -474,6 +524,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textGrey,
   },
+  editProfileButton: {
+    backgroundColor: Colors.titleGrey,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  editProfileText: {
+    color: "white",
+    fontWeight: "500",
+    fontSize: 14,
+    marginLeft: 6,
+  },
   separator: {
     height: 1,
     backgroundColor: "#EEEEEE",
@@ -481,7 +548,12 @@ const styles = StyleSheet.create({
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E53935",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   logoutText: {
     color: "#E53935",
@@ -521,8 +593,8 @@ const styles = StyleSheet.create({
   },
   editIconContainer: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
+    bottom: -4,
+    right: -4,
     backgroundColor: Colors.titleGrey,
     width: 28,
     height: 28,
@@ -531,5 +603,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: "white",
-  }
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
 });
