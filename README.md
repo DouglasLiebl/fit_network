@@ -24,3 +24,13 @@ npm run ios # iphone
 
 > [!WARNING]  
 > This project actually uses Expo v52, be careful to use a version of the Expo app that is compatible.
+
+#### Contributors
+<a href="https://github.com/DouglasLiebl/fit_network/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=DouglasLiebl/fit_network" />
+</a>
+<p>
+  
+  [Douglas Liebl](github.com/DouglasLiebl) | [Bruno Polaski](github.com/BrunoPolaski)
+  
+</p>
