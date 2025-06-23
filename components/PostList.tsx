@@ -182,6 +182,7 @@ function LikeButton({
     onPress();
   };
 
+
   return (
     <View style={styles.likeButtonContainer}>
       <TouchableOpacity
@@ -299,6 +300,38 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
 
   function renderPostItem({ item, index }: { item: Post; index: number }) {
     const isOwnPost = user?.uid && item.userId === user.uid;
+
+
+
+    const postDateFormatting = (date: Date | string): string => {
+      if (!date) return '';
+      const parsedDate = typeof date === 'string' ? new Date(date) : date;
+      const now = new Date();
+
+      const diffMs = now.getTime() - parsedDate.getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHours = Math.floor(diffMin / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffDays < 1) {
+        if (diffHours >= 1) {
+          return `${diffHours} h`;
+        } else if (diffMin >= 1) {
+          return `${diffMin} min`;
+        } else {
+          return `${diffSec} s`;
+        }
+      } else if (diffDays < 7) {
+        return `${diffDays} d`;
+      }
+
+      const day = parsedDate.getDate().toString().padStart(2, '0');
+      const month = format(parsedDate, 'MMMM', { locale: ptBR });
+      const year = parsedDate.getFullYear();
+
+      return `${day} de ${month} de ${year}`;
+    };
     
     return (
       <View style={styles.postCard}>
@@ -323,9 +356,9 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
               <Text style={styles.username}>{item.username}</Text>
             </TouchableOpacity>
             <View style={styles.postHeaderRight}>
-              <View>
+              <View style={{ flexDirection: 'column', alignItems: 'flex-end' }}>
                 <Text style={styles.date}>
-                  {format(item.createdAt, "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  {postDateFormatting(item.createdAt)}
                 </Text>
                 {item.updatedAt && (
                   <Text style={styles.editedText}>(editado)</Text>

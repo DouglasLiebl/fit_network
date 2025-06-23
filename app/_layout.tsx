@@ -162,7 +162,7 @@ function RootLayoutNav() {
         />
         <Stack.Screen 
           name="profile" 
-          options={({ route }) => ({
+          options={() => ({
             headerTitle: 'Perfil',
             headerTitleStyle: {
               fontFamily: 'JetBrainsMono_600SemiBold',
