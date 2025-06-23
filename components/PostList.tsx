@@ -148,6 +148,7 @@ interface PostListProps {
   onItemLongPress: (post: Post) => void;
   loading: boolean;
   refreshPosts?: () => void;
+  onLikeUpdate?: (totalLikes: number) => void;
 }
 
 function LikeButton({ 
@@ -211,7 +212,7 @@ function LikeButton({
   );
 }
 
-export default function PostList({ posts, onItemLongPress, loading, refreshPosts }: PostListProps) {
+export default function PostList({ posts, onItemLongPress, loading, refreshPosts, onLikeUpdate }: PostListProps) {
   const [localPosts, setLocalPosts] = useState<Post[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [modalImgUrl, setModalImgUrl] = useState<string|null>(null);
@@ -271,6 +272,10 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
       if (index < updatedPosts.length) {
         updatedPosts[index] = updatedPost;
         setLocalPosts(updatedPosts);
+      }
+
+      if (onLikeUpdate) {
+        onLikeUpdate(updatedPost.likes);
       }
     } catch (error) {
       trackLikedPost(post.id, !isLikedByUser(post));

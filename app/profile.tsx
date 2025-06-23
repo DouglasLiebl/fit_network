@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useUser } from "@/context/user_provider";
 import Colors from "@/constants/Colors";
 import { getAuth, signOut } from "firebase/auth";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from "firebase/firestore";
@@ -13,32 +13,101 @@ import PostList from "@/components/PostList";
 import ActionModal from "@/components/ActionModal";
 import PostForm from "@/components/PostForm";
 import ImageModal from "@/components/ImageModal";
+import ProfilePhotoModal from "@/components/ProfilePhotoModal";
+import { CacheUtils } from "@/utils/cacheUtils";
 
 export default function Profile(): React.JSX.Element {
-  const { user, setUser } = useUser();
+  const { user, setUser, refreshUser } = useUser();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const auth = getAuth();
   const db = getFirestore();
+  
+  const profileUserId = params.userId as string || (user?.uid || "");
+  const isCurrentUser = !params.userId || profileUserId === user?.uid;
+  
   const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<{
+    displayName?: string;
+    photoURL?: string | null;
+  } | null>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [postsCount, setPostsCount] = useState(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [imageModalVisibile, setImageModalVisible] = useState(false);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [profilePhotoModalVisible, setProfilePhotoModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
 
   useEffect(() => {
-    if (user && user.uid) {
+    if (profileUserId) {
+      fetchProfileData();
       fetchUserPosts();
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [profileUserId]);
+  
+  const fetchProfileData = async () => {
+    if (!profileUserId) return;
+    
+    try {
+      await CacheUtils.clearAllCache();
+      
+      if (isCurrentUser && user) {
+        await refreshUser();
+        
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          await currentUser.reload();
+          
+          const db = getFirestore();
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          let photoURL = null;
+          if (userDoc.exists() && userDoc.data().photoURL) {
+            photoURL = `${userDoc.data().photoURL}?t=${Date.now()}`;
+          } else if (currentUser.photoURL) {
+            photoURL = `${currentUser.photoURL}?t=${Date.now()}`;
+          }
+          
+          setProfileData({
+            displayName: currentUser.displayName || "Usuário",
+            photoURL: photoURL
+          });
+        } else {
+          setProfileData({
+            displayName: user.displayName || "Usuário",
+            photoURL: user.photoURL ? `${user.photoURL}?t=${Date.now()}` : null
+          });
+        }
+        return;
+      }
+      
+      const userDoc = await getDoc(doc(db, "users", profileUserId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const photoURL = userData.photoURL ? `${userData.photoURL}?t=${Date.now()}` : null;
+        
+        setProfileData({
+          displayName: userData.displayName || "Usuário",
+          photoURL: photoURL
+        });
+      } else {
+        Alert.error("Erro", "Perfil não encontrado.");
+        router.back();
+      }
+    } catch (error) {
+      console.error("Error fetching profile data:", error);
+      Alert.error("Erro", "Falha ao carregar dados do perfil.");
+    }
+  };
 
   const fetchUserPosts = async () => {
-    if (!user?.uid) return;
+    if (!profileUserId) return;
     
     try {
       setLoading(true);
@@ -46,7 +115,7 @@ export default function Profile(): React.JSX.Element {
       const postsRef = collection(db, "posts");
       const userPostsQuery = query(
         postsRef, 
-        where("userId", "==", user.uid),
+        where("userId", "==", profileUserId),
         orderBy("createdAt", "desc")
       );
       
@@ -64,6 +133,9 @@ export default function Profile(): React.JSX.Element {
           location: data.location,
           createdAt: data.createdAt.toDate(),
           userProfileImage: data.userProfileImage || null,
+          updatedAt: data.updatedAt ? data.updatedAt.toDate() : null,
+          likes: data.likes || 0,
+          likedBy: data.likedBy || [],
         });
       });
       
@@ -127,7 +199,6 @@ export default function Profile(): React.JSX.Element {
         
         await deleteDoc(doc(db, "posts", selectedPost.id));
         
-        // Update state
         const updatedPosts = userPosts.filter(post => post.id !== selectedPost.id);
         setUserPosts(updatedPosts);
         setPostsCount(updatedPosts.length);
@@ -159,7 +230,6 @@ export default function Profile(): React.JSX.Element {
           location,
         });
         
-        // Refresh the posts list
         await fetchUserPosts();
         
         setSavingPost(false);
@@ -195,26 +265,50 @@ export default function Profile(): React.JSX.Element {
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.profileInfo}>
-          {user?.photoURL ? (
-            <TouchableOpacity 
-              onPress={() => setImageModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Image source={{ uri: user.photoURL }} style={styles.profileImage} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.profileImagePlaceholder}>
-              <Ionicons name="person" size={40} color="#CCCCCC" />
-            </View>
-          )}
+          <TouchableOpacity 
+            onPress={() => {
+              if (isCurrentUser) {
+                setProfilePhotoModalVisible(true);
+              } else if (profileData?.photoURL) {
+                setImageModalVisible(true);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            {profileData?.photoURL ? (
+              <Image 
+                source={{ 
+                  uri: profileData.photoURL,
+                  cache: 'reload'
+                }} 
+                style={styles.profileImage} 
+              />
+            ) : (
+              <View style={styles.profileImagePlaceholder}>
+                <Ionicons name="person" size={40} color="#CCCCCC" />
+                {isCurrentUser && (
+                  <View style={styles.editIconContainer}>
+                    <Ionicons name="camera" size={16} color="white" />
+                  </View>
+                )}
+              </View>
+            )}
+            {isCurrentUser && profileData?.photoURL && (
+              <View style={styles.editIconContainer}>
+                <Ionicons name="camera" size={16} color="white" />
+              </View>
+            )}
+          </TouchableOpacity>
           
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {user?.displayName || 'Usuário'}
+              {profileData?.displayName || 'Usuário'}
             </Text>
-            <Text style={styles.userEmail}>
-              {user?.email}
-            </Text>
+            {isCurrentUser && user && (
+              <Text style={styles.userEmail}>
+                {user.email}
+              </Text>
+            )}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statCount}>{postsCount}</Text>
@@ -225,13 +319,15 @@ export default function Profile(): React.JSX.Element {
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <MaterialIcons name="logout" size={18} color="#E53935" />
-            <Text style={styles.logoutText}>Sair</Text>
-          </TouchableOpacity>
+          {isCurrentUser && (
+            <TouchableOpacity 
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <MaterialIcons name="logout" size={18} color="#E53935" />
+              <Text style={styles.logoutText}>Sair</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
       
@@ -239,26 +335,34 @@ export default function Profile(): React.JSX.Element {
 
       {/* User Posts */}
       <View style={styles.postsContainer}>
-        <Text style={styles.sectionTitle}>Meus Posts</Text>
+        <Text style={styles.sectionTitle}>
+          {isCurrentUser ? 'Meus Posts' : 'Posts'}
+        </Text>
         
         {userPosts.length === 0 ? (
           <View style={styles.emptyPosts}>
             <Ionicons name="images-outline" size={48} color={Colors.textGrey} />
             <Text style={styles.emptyPostsText}>
-              Você ainda não publicou nada
+              {isCurrentUser 
+                ? 'Você ainda não publicou nada'
+                : 'Este usuário ainda não publicou nada'
+              }
             </Text>
-            <TouchableOpacity 
-              style={styles.createPostButton}
-              onPress={() => router.push('/home')}
-            >
-              <Text style={styles.createPostText}>Criar Post</Text>
-            </TouchableOpacity>
+            {isCurrentUser && (
+              <TouchableOpacity 
+                style={styles.createPostButton}
+                onPress={() => router.push('/home')}
+              >
+                <Text style={styles.createPostText}>Criar Post</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <PostList 
             posts={userPosts}
-            onItemLongPress={handleLongPress}
+            onItemLongPress={isCurrentUser ? handleLongPress : (() => {})}
             loading={false}
+            refreshPosts={fetchUserPosts}
           />
         )}
       </View>
@@ -270,10 +374,21 @@ export default function Profile(): React.JSX.Element {
         onDelete={handleDeletePost}
       />
 
+      {/* View Image Modal */}
       <ImageModal
-        visible={imageModalVisibile && !!user?.photoURL}
-        imageUrl={user?.photoURL!}
+        visible={imageModalVisible && !!profileData?.photoURL}
+        imageUrl={profileData?.photoURL || ''}
         onClose={() => setImageModalVisible(false)}
+      />
+
+      <ProfilePhotoModal
+        visible={profilePhotoModalVisible}
+        photoURL={profileData?.photoURL || null}
+        onClose={() => setProfilePhotoModalVisible(false)}
+        onPhotoUpdated={() => {
+          fetchProfileData();
+          fetchUserPosts();
+        }}
       />
 
       <PostForm 
@@ -403,5 +518,18 @@ const styles = StyleSheet.create({
   createPostText: {
     color: "white",
     fontWeight: "500",
+  },
+  editIconContainer: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.titleGrey,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "white",
   }
 });
