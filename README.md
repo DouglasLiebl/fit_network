@@ -22,6 +22,14 @@ npm run android # android
 npm run ios # iphone
 ```
 
+> [!IMPORTANT]
+> If you have any trouble by running the app, it probably means that your firewall is
+blocking the connection between the server and the physical device or that youre running in different wifi networks.
+Therefore, you can bypass this with:
+> ```sh
+> npx expo start --tunnel
+> ```
+
 > [!WARNING]  
 > This project actually uses Expo v52, be careful to use a version of the Expo app that is compatible.
 
