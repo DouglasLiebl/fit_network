@@ -54,7 +54,6 @@ export default function EditProfileModal({
 
   const handleEmailChange = (text: string) => {
     setEmail(text);
-    // Show password field if email is being changed
     setShowPasswordField(text !== originalEmail && text.trim() !== '');
   };
 
@@ -97,7 +96,6 @@ export default function EditProfileModal({
       if (phoneNumber.trim()) {
         updateData.phoneNumber = phoneNumber.trim();
       } else {
-        // Allow removing phone number
         updateData.phoneNumber = '';
       }
 
