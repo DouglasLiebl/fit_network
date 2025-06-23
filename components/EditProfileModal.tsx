@@ -149,31 +149,6 @@ export default function EditProfileModal({
                 autoCapitalize="words"
               />
 
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                value={email}
-                onChangeText={handleEmailChange}
-                placeholder="Seu email"
-                placeholderTextColor="#999"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              {showPasswordField && (
-                <>
-                  <Text style={styles.label}>Senha atual (necessária para alterar o email)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={currentPassword}
-                    onChangeText={setCurrentPassword}
-                    placeholder="Sua senha atual"
-                    placeholderTextColor="#999"
-                    secureTextEntry
-                  />
-                </>
-              )}
-
               <Text style={styles.label}>Telefone</Text>
               <TextInput
                 style={styles.input}

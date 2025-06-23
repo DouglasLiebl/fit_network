@@ -345,7 +345,13 @@ export default function PostList({ posts, onItemLongPress, loading, refreshPosts
               activeOpacity={0.7}
             >
               {item.userProfileImage ? (
-                  <Image source={{ uri: item.userProfileImage }} style={styles.userAvatar} />
+                  <Image 
+                    source={{ 
+                      uri: `${item.userProfileImage}?t=${Date.now()}`,
+                      cache: 'reload'
+                    }} 
+                    style={styles.userAvatar} 
+                  />
               ) : (
                 <View style={styles.userAvatarPlaceholder}>
                   <Text style={{ textAlign: 'center' }}>

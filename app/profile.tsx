@@ -6,7 +6,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons, MaterialIcons, AntDesign } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc, updateDoc, addDoc } from "firebase/firestore";
 import { Alert } from "@/utils/alertUtils";
 import { Post } from "@/@types/Post";
 import PostList from "@/components/PostList";
@@ -16,6 +16,7 @@ import ImageModal from "@/components/ImageModal";
 import ProfilePhotoModal from "@/components/ProfilePhotoModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import { CacheUtils } from "@/utils/cacheUtils";
+import UserUtils from "@/utils/userUtils";
 
 export default function Profile(): React.JSX.Element {
   const { user, setUser, refreshUser } = useUser();
@@ -221,33 +222,68 @@ export default function Profile(): React.JSX.Element {
   };
 
   const handleSave = async (description: string, imageUrl: string, location: any) => {
+    if (!description && !imageUrl) {
+      Alert.warning('Atenção', 'Seu post precisa de uma descrição ou imagem');
+      return;
+    }
+    
     if (!user || !user.uid) {
       Alert.error("Erro", "Usuário não autenticado");
       return;
     }
 
-    if (isEditing && selectedPost) {
-      try {
-        setSavingPost(true);
-        
+    try {
+      setSavingPost(true);
+      
+      if (isEditing && selectedPost) {
         await updateDoc(doc(db, "posts", selectedPost.id), {
           description,
           imageUrl,
           location,
+          updatedAt: new Date()
         });
         
-        await fetchUserPosts();
-        
-        setSavingPost(false);
-        setModalVisible(false);
-        setIsEditing(false);
-        setSelectedPost(null);
-        
         Alert.success("Sucesso", "Post atualizado com sucesso!");
-      } catch (error: any) {
-        setSavingPost(false);
-        Alert.error("Erro", "Ocorreu um erro ao atualizar o post: " + error.message);
+      } else {
+        const currentUser = await UserUtils.ensureUserProfile();
+        const displayName = UserUtils.getUserDisplayName(currentUser || user);
+        
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        let profilePhotoURL = null;
+        
+        if (userDoc.exists() && userDoc.data().photoURL) {
+          profilePhotoURL = userDoc.data().photoURL;
+        } else if ((currentUser || user).photoURL) {
+          profilePhotoURL = (currentUser || user).photoURL;
+        }
+        
+        const newPost = {
+          userId: user.uid,
+          username: displayName,
+          description,
+          imageUrl,
+          location,
+          createdAt: new Date(),
+          userProfileImage: profilePhotoURL,
+          likes: 0,
+          likedBy: [],
+          updatedAt: null
+        };
+        
+        await addDoc(collection(db, "posts"), newPost);
+        
+        Alert.success("Sucesso", "Post criado com sucesso!");
       }
+      
+      await fetchUserPosts();
+      
+      setSavingPost(false);
+      setModalVisible(false);
+      setIsEditing(false);
+      setSelectedPost(null);
+    } catch (error: any) {
+      setSavingPost(false);
+      Alert.error("Erro", "Ocorreu um erro ao " + (isEditing ? "atualizar" : "criar") + " o post: " + error.message);
     }
   };
 
@@ -255,6 +291,14 @@ export default function Profile(): React.JSX.Element {
     setModalVisible(false);
     setIsEditing(false);
     setSelectedPost(null);
+  };
+
+  const openAddModal = async () => {
+    await fetchProfileData();
+    
+    setIsEditing(false);
+    setSelectedPost(null);
+    setModalVisible(true);
   };
 
   if (loading) {
@@ -314,6 +358,11 @@ export default function Profile(): React.JSX.Element {
                 {user.email}
               </Text>
             )}
+            {profileData?.phoneNumber && (
+              <Text style={styles.userPhone}>
+                <Ionicons name="call-outline" size={14} color={Colors.textGrey} /> {profileData.phoneNumber}
+              </Text>
+            )}
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statCount}>{postsCount}</Text>
@@ -367,7 +416,7 @@ export default function Profile(): React.JSX.Element {
             {isCurrentUser && (
               <TouchableOpacity 
                 style={styles.createPostButton}
-                onPress={() => router.push('/home')}
+                onPress={openAddModal}
               >
                 <Text style={styles.createPostText}>Criar Post</Text>
               </TouchableOpacity>
